@@ -8,53 +8,54 @@
 import Vapor
 import Fluent
 
+struct CreateBlockData: Content {
+    let data: String
+    let blockchainID: UUID
+}
+
 struct BlocksController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         let blocksRoutes = routes.grouped("api", "blocks")
         
-        // Create
+        // Create new block
         blocksRoutes.post(use: createHandler)
-        
+
         // Read
         blocksRoutes.get(use: getAllHandler)
         blocksRoutes.get(":blockID", use: getHandler)
         blocksRoutes.get("last", use: getLastHandler)
-        
-        // Update
-        blocksRoutes.put(":blockID", use: updateHandler)
-        
-        // Delete
-        blocksRoutes.delete(":blockID", use: deleteHandler)
-        
+        blocksRoutes.get(":blockID", "blockchain", use: getBlockchainHandler)
+
         // Search
         blocksRoutes.get("search", use: searchHandler)
-        
+
         // Sorted
         blocksRoutes.get("sorted", use: sortedHandler)
     }
     
-    // MARK: - CREATE
+    // MARK: - CREATE BLOCK
     func createHandler(_ req: Request) throws -> EventLoopFuture<Block> {
-        let block = try req.content.decode(Block.self)
-        // 1. get the last block, if there is none, generate genesis block
-        // 2. extract the lastHash
-        // 3. create a new block
-        // 4. save and return new block
-        return block.save(on: req.db).map {
-            block
+        let data = try req.content.decode(CreateBlockData.self)
+        let lastBlock = try getLastHandler(req)
+        
+        return lastBlock.flatMap { previousBlock in
+            let newBlock = Block.mineBlock(lastBlock: previousBlock, data: data.data)
+            return newBlock
+                .save(on: req.db)
+                .map { newBlock }
         }
     }
-    
+
     // MARK: - READ
     func getHandler(_ req: Request) throws -> EventLoopFuture<Block> {
         Block.find(req.parameters.get("blockID"), on: req.db)
             .unwrap(or: Abort(.notFound))
     }
-    
+
     func getAllHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
         Block.query(on: req.db).all()
     }
-    
+
     func getLastHandler(_ req: Request) throws -> EventLoopFuture<Block> {
         Block.query(on: req.db)
             .all()
@@ -62,48 +63,29 @@ struct BlocksController: RouteCollection {
             .unwrap(or: Abort(.notFound))
     }
     
-    // MARK: - UPDATE
-    func updateHandler(_ req: Request) throws -> EventLoopFuture<Block> {
-        let updatedBlock = try req.content.decode(Block.self)
-        return Block.find(req.parameters.get("blockID"), on: req.db)
-            .unwrap(or: Abort(.notFound)).flatMap { block in
-                block.timestamp = updatedBlock.timestamp
-                block.lastHash = updatedBlock.lastHash
-                block.hash = updatedBlock.hash
-                block.data = updatedBlock.data
-                return block.save(on: req.db).map {
-                    block
-                }
-            }
-    }
-    
-    // MARK: - DELETE
-    func deleteHandler(_ req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func getBlockchainHandler(_ req: Request) throws -> EventLoopFuture<Blockchain> {
         Block.find(req.parameters.get("blockID"), on: req.db)
             .unwrap(or: Abort(.notFound))
             .flatMap { block in
-                block.delete(on: req.db)
-                    .transform(to: .noContent)
+                block.$blockchain.get(on: req.db)
             }
     }
-    
+
     // MARK: - SEARCH
     func searchHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
-        guard let searchTerm = req.query[String.self, at: "term"] else {
+        guard let searchTerm = req.query[Int.self, at: "block"] else {
             throw Abort(.badRequest)
         }
         
-        return Block.query(on: req.db).group(.or) { or in
-            or.filter(\.$hash == searchTerm)
-            or.filter(\.$data == searchTerm)
-        }.all()
-    }
-    
-    // MARK: - SORTED
-    func sortedHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
-        Block.query(on: req.db)
-            .sort(\.$timestamp, .ascending)
+        return Block.query(on: req.db)
+            .filter(\.$number == searchTerm)
             .all()
     }
 
+    // MARK: - SORTED
+    func sortedHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
+        Block.query(on: req.db)
+            .sort(\.$number, .ascending)
+            .all()
+    }
 }

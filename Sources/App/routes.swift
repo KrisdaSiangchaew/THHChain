@@ -6,7 +6,10 @@ func routes(_ app: Application) throws {
         return "Welcome to THHChain"
     }
     
+    let blockchainsController = BlockchainsController()
+    try app.register(collection: blockchainsController)
+
     let blocksController = BlocksController()
-    
     try app.register(collection: blocksController)
+    
 }

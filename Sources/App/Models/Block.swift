@@ -1,5 +1,5 @@
 //
-//  File.swift
+//  Block.swift
 //  
 //
 //  Created by Krisda on 28/12/2564 BE.
@@ -14,6 +14,9 @@ final class Block: Model {
     
     @ID
     var id: UUID?
+    
+    @Field(key: "number")
+    var number: Int
     
     @Field(key: "timestamp")
     var timestamp: Double
@@ -33,28 +36,43 @@ final class Block: Model {
     @Field(key: "difficulty")
     var difficulty: Int
     
+    @Parent(key: "blockchainID")
+    var blockchain: Blockchain
+    
     init() {}
     
-    init(id: UUID? = nil, timestamp: Double? = nil, lastHash: String, hash: String, data: String, nonce: Int, difficulty: Int? = nil) {
+    init(id: UUID? = nil, number: Int, timestamp: Double? = nil, lastHash: String, hash: String, data: String, nonce: Int, difficulty: Int? = nil, blockchainID: Blockchain.IDValue) {
         self.id = id
+        self.number = number
         self.timestamp = timestamp ?? Date().timeIntervalSince1970
         self.lastHash = lastHash
         self.hash = hash
         self.data = data
         self.nonce = nonce
         self.difficulty = difficulty ?? BlockConstants.DIFFICULTY.rawValue
+        self.$blockchain.id = blockchainID
     }
 }
 
 extension Block: Content {}
 
 extension Block {
-    static func genesis() -> Block {
-        let genesis = Block(lastHash: "", hash: "", data: "genesis-block", nonce: 0)
-        return mineBlock(lastBlock: genesis, data: genesis.data)
+    static func genesis(blockchainID: UUID) -> Block {
+        return Block(
+            id: UUID(),
+            number: 1,
+            timestamp: 1641486927.59881,
+            lastHash: "----",
+            hash: "T3nGH3NgH3ng",
+            data: "Teng Heng Heng Blockchain",
+            nonce: 0,
+            difficulty: BlockConstants.DIFFICULTY.rawValue,
+            blockchainID: blockchainID)
     }
     
     static func mineBlock(lastBlock: Block, data: String) -> Block {
+        let blockNumber = lastBlock.number + 1
+        let lastHash = lastBlock.hash
         var timestamp: Double = 0
         var nonce: Int = 0
         var difficulty: Int = BlockConstants.DIFFICULTY.rawValue
@@ -64,10 +82,10 @@ extension Block {
             timestamp = Date().timeIntervalSince1970
             nonce += 1
             difficulty = Block.adjustDifficulty(lastBlock, timestamp)
-            hash = Block.hash(timestamp: timestamp, lastHash: lastBlock.lastHash, data: data, nonce: nonce, difficulty: difficulty)
+            hash = Block.hash(timestamp: timestamp, lastHash: lastHash, data: data, nonce: nonce, difficulty: difficulty)
         } while hash.prefix(difficulty) != String(repeating: "0", count: difficulty)
         
-        return Block(timestamp: timestamp, lastHash: lastBlock.lastHash, hash: hash, data: data, nonce: nonce, difficulty: difficulty)
+        return Block(id: UUID(), number: blockNumber, timestamp: timestamp, lastHash: lastBlock.hash, hash: hash, data: data, nonce: nonce, difficulty: difficulty, blockchainID: lastBlock.$blockchain.id)
     }
     
     static func hash(
@@ -87,7 +105,16 @@ extension Block {
     
     static func adjustDifficulty(_ lastBlock: Block, _ currentTime: Double) -> Int {
         var difficulty = lastBlock.difficulty
-        difficulty = Int(lastBlock.timestamp) + BlockConstants.MINE_RATE.rawValue > Int(currentTime) ? difficulty + 1: difficulty - 1
+        difficulty += Int(lastBlock.timestamp) + BlockConstants.MINE_RATE.rawValue > Int(currentTime) ? 1 : -1
+        
+        if difficulty < 0 { difficulty = 0 }
+        
         return difficulty
+    }
+}
+
+extension Block: Equatable {
+    static func == (lhs: Block, rhs: Block) -> Bool {
+        Block.hash(block: lhs) == Block.hash(block: rhs)
     }
 }
