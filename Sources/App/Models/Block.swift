@@ -64,7 +64,7 @@ extension Block {
             timestamp: 1641486927.59881,
             lastHash: "----",
             hash: "T3nGH3NgH3ng",
-            data: "Teng Heng Heng Blockchain",
+            data: "Genesis Block",
             nonce: 0,
             difficulty: BlockConstants.DIFFICULTY.rawValue,
             blockchainID: blockchainID)

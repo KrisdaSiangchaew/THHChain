@@ -32,11 +32,11 @@ struct BlockchainsController: RouteCollection {
     func createHandler(_ req: Request) throws -> EventLoopFuture<Block> {
         let bc = try req.content.decode(Blockchain.self)
         let blockchain = bc.save(on: req.db).map { bc }
-        guard let blockchainID = bc.id else {
-            return req.eventLoop.future(error: Abort(.internalServerError))
-        }
+
         return blockchain.flatMap { bc in
-            let genesisBlock = Block.genesis(blockchainID: blockchainID)
+            guard let genesisBlock = bc.addGenesisBlock() else {
+                return req.eventLoop.future(error: Abort(.internalServerError))
+            }
             return genesisBlock
                 .save(on: req.db)
                 .map { genesisBlock }

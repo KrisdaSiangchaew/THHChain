@@ -31,6 +31,13 @@ final class Blockchain: Model {
 extension Blockchain: Content { }
 
 extension Blockchain {
+    func addGenesisBlock() -> Block? {
+        guard let blockchainID = self.id else {
+            return nil
+        }
+        return Block.genesis(blockchainID: blockchainID)
+    }
+    
     static func isValidChain(blocks: [Block]) -> HTTPStatus {
         if blocks[0] != Block.genesis(blockchainID: blocks[0].id!) {
             return HTTPStatus.conflict
