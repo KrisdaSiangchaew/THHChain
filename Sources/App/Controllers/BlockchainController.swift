@@ -21,15 +21,31 @@ struct BlockchainsController: RouteCollection {
         // Get unique blockchain
         blockchainsRoutes.get(":blockchainID", use: getHandler)
         
+        // Add block
+        blockchainsRoutes.post(":blockchainID", use: createBlockHandler)
+        
         // Get all blocks
         blockchainsRoutes.get(":blockchainID", "blocks", use: getBlocksHandler)
         
-        // Add block
-        blockchainsRoutes.post(":blockchainID", "add", use: addBlockHandler)
+        // Search for a block
+        blockchainsRoutes.get(":blockchainID", "search", use: searchBlockHandler)
         
         // Is valid chain
         blockchainsRoutes.get(":blockchainID", "isValid", use: isValidChainHandler)
+    }
+    
+    func searchBlockHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
+        guard let searchTerm = req.query[Int.self, at: "block"] else {
+            throw Abort(.badRequest)
+        }
         
+        let allBlocks = try getBlocksHandler(req)
+        
+        return allBlocks.map { blocks in
+            return blocks.filter { element in
+                element.$number.wrappedValue == searchTerm
+            }
+        }
     }
     
     func createHandler(_ req: Request) throws -> EventLoopFuture<Block> {
@@ -37,7 +53,7 @@ struct BlockchainsController: RouteCollection {
         let blockchain = bc.save(on: req.db).map { bc }
 
         return blockchain.flatMap { bc in
-            guard let genesisBlock = bc.addGenesisBlock() else {
+            guard let genesisBlock = bc.addBlock(lastBlock: nil, data: nil) else {
                 return req.eventLoop.future(error: Abort(.internalServerError))
             }
             return genesisBlock
@@ -56,14 +72,13 @@ struct BlockchainsController: RouteCollection {
     }
     
     func getBlocksHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
-        Blockchain.find(req.parameters.get("blockchainID"), on: req.db)
-            .unwrap(or: Abort(.notFound))
+        try getHandler(req)
             .flatMap { blockchain in
                 blockchain.$blocks.get(on: req.db)
             }
     }
     
-    func addBlockHandler(_ req: Request) throws -> EventLoopFuture<Block> {
+    func createBlockHandler(_ req: Request) throws -> EventLoopFuture<Block> {
         let data = try req.content.decode(CreateBlockData.self)
         let lastBlock = try getBlocksHandler(req).map { $0.last }.unwrap(or: Abort(.notFound))
         

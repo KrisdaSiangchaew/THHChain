@@ -31,11 +31,16 @@ final class Blockchain: Model {
 extension Blockchain: Content { }
 
 extension Blockchain {
-    func addGenesisBlock() -> Block? {
+    func addBlock(lastBlock: Block?, data: String?) -> Block? {
         guard let blockchainID = self.id else {
             return nil
         }
-        return Block.genesis(blockchainID: blockchainID)
+        
+        guard let lastBlock = lastBlock, let data = data else {
+            return Block.genesis(blockchainID: blockchainID)
+        }
+        
+        return Block.mineBlock(lastBlock: lastBlock, data: data)
     }
     
     static func isValidChain(blocks: [Block]) -> HTTPStatus {

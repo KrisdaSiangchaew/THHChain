@@ -10,7 +10,7 @@ import Fluent
 
 struct CreateBlockData: Content {
     let data: String
-    let blockchainID: UUID
+//    let blockchainID: UUID
 }
 
 struct BlocksController: RouteCollection {
