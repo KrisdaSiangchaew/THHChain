@@ -29,31 +29,14 @@ struct BlockchainsController: RouteCollection {
         
     }
     
-    func isValidChainHandler(_ req: Request) throws -> EventLoopFuture<HTTPStatus> {
-        let allBlocks = try getBlocksHandler(req)
-        let result = allBlocks.map { Blockchain.isValidChain(blocks: $0) }
-        _ = result.map { print("Is valid chain: \($0)")}
-        return result
-    }
-    
-    func addBlockHandler(_ req: Request) throws -> EventLoopFuture<Block> {
-        let data = try req.content.decode(CreateBlockData.self)
-        let lastBlock = try getBlocksHandler(req).map { $0.last }.unwrap(or: Abort(.notFound))
-        
-        return lastBlock.flatMap { previousBlock in
-            let newBlock = Block.mineBlock(lastBlock: previousBlock, data: data.data)
-            return newBlock
-                .save(on: req.db)
-                .map { newBlock }
-        }
-    }
-    
     func createHandler(_ req: Request) throws -> EventLoopFuture<Block> {
         let bc = try req.content.decode(Blockchain.self)
         let blockchain = bc.save(on: req.db).map { bc }
-        // guard to block bad id
+        guard let blockchainID = bc.id else {
+            return req.eventLoop.future(error: Abort(.internalServerError))
+        }
         return blockchain.flatMap { bc in
-            let genesisBlock = Block.genesis(blockchainID: bc.id!)
+            let genesisBlock = Block.genesis(blockchainID: blockchainID)
             return genesisBlock
                 .save(on: req.db)
                 .map { genesisBlock }
@@ -70,5 +53,24 @@ struct BlockchainsController: RouteCollection {
             .flatMap { blockchain in
                 blockchain.$blocks.get(on: req.db)
             }
+    }
+    
+    func addBlockHandler(_ req: Request) throws -> EventLoopFuture<Block> {
+        let data = try req.content.decode(CreateBlockData.self)
+        let lastBlock = try getBlocksHandler(req).map { $0.last }.unwrap(or: Abort(.notFound))
+        
+        return lastBlock.flatMap { previousBlock in
+            let newBlock = Block.mineBlock(lastBlock: previousBlock, data: data.data)
+            return newBlock
+                .save(on: req.db)
+                .map { newBlock }
+        }
+    }
+    
+    func isValidChainHandler(_ req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        let allBlocks = try getBlocksHandler(req)
+        let result = allBlocks.map { Blockchain.isValidChain(blocks: $0) }
+        _ = result.map { print("Is valid chain: \($0)")}
+        return result
     }
 }
