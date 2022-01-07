@@ -18,6 +18,9 @@ struct BlockchainsController: RouteCollection {
         // Get all blockchains
         blockchainsRoutes.get(use: getAllHandler)
         
+        // Get unique blockchain
+        blockchainsRoutes.get(":blockchainID", use: getHandler)
+        
         // Get all blocks
         blockchainsRoutes.get(":blockchainID", "blocks", use: getBlocksHandler)
         
@@ -45,6 +48,11 @@ struct BlockchainsController: RouteCollection {
     
     func getAllHandler(_ req: Request) throws -> EventLoopFuture<[Blockchain]> {
         Blockchain.query(on: req.db).all()
+    }
+    
+    func getHandler(_ req: Request) throws -> EventLoopFuture<Blockchain> {
+        return Blockchain.find(req.parameters.get("blockchainID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
     }
     
     func getBlocksHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
