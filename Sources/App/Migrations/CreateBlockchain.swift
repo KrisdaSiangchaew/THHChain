@@ -9,7 +9,7 @@ import Fluent
 
 struct CreateBlockchain: Migration {
     func prepare(on database: Database) -> EventLoopFuture<Void> {
-        database.schema("blockchains")
+        database.schema(Blockchain.schema)
             .id()
             .field("name", .string, .required)
             .create()

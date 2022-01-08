@@ -10,7 +10,7 @@ import Fluent
 
 struct CreateBlockData: Content {
     let data: String
-//    let blockchainID: UUID
+    let blockchainID: UUID
 }
 
 struct BlocksController: RouteCollection {
@@ -35,15 +35,18 @@ struct BlocksController: RouteCollection {
     
     // MARK: - CREATE BLOCK
     func createHandler(_ req: Request) throws -> EventLoopFuture<Block> {
-        let data = try req.content.decode(CreateBlockData.self)
-        let lastBlock = try getLastHandler(req)
+        let createBlock = try req.content.decode(CreateBlockData.self)
         
-        return lastBlock.flatMap { previousBlock in
-            let newBlock = Block.mineBlock(lastBlock: previousBlock, data: data.data)
-            return newBlock
-                .save(on: req.db)
-                .map { newBlock }
+        let blockchainID = createBlock.blockchainID.uuidString
+        let blockData = createBlock.data
+        
+        let minedBlock = try BlockchainServices.createBlock(req, blockchainID: blockchainID, data: blockData)
+        
+        _ = minedBlock.map {
+            $0.save(on: req.db)
         }
+        
+        return minedBlock
     }
 
     // MARK: - READ

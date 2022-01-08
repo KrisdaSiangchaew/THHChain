@@ -8,17 +8,21 @@
 import Vapor
 import Fluent
 
+struct CreateBlockchainBlockData: Content {
+    let data: String
+}
+
 struct BlockchainsController: RouteCollection {
+    // MARK: - ENDPOINTS
+
     func boot(routes: RoutesBuilder) throws {
         let blockchainsRoutes = routes.grouped("api", "blockchain")
-        
-        // Create new blockchain
+            
+        // Create
         blockchainsRoutes.post(use: createHandler)
         
-        // Get all blockchains
+        // Read
         blockchainsRoutes.get(use: getAllHandler)
-        
-        // Get unique blockchain
         blockchainsRoutes.get(":blockchainID", use: getHandler)
         
         // Add block
@@ -34,19 +38,7 @@ struct BlockchainsController: RouteCollection {
         blockchainsRoutes.get(":blockchainID", "isValid", use: isValidChainHandler)
     }
     
-    func searchBlockHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
-        guard let searchTerm = req.query[Int.self, at: "block"] else {
-            throw Abort(.badRequest)
-        }
-        
-        let allBlocks = try getBlocksHandler(req)
-        
-        return allBlocks.map { blocks in
-            return blocks.filter { element in
-                element.$number.wrappedValue == searchTerm
-            }
-        }
-    }
+    // MARK: - CREATE
     
     func createHandler(_ req: Request) throws -> EventLoopFuture<Block> {
         let bc = try req.content.decode(Blockchain.self)
@@ -62,6 +54,8 @@ struct BlockchainsController: RouteCollection {
         }
     }
     
+    // MARK: - READ
+    
     func getAllHandler(_ req: Request) throws -> EventLoopFuture<[Blockchain]> {
         Blockchain.query(on: req.db).all()
     }
@@ -69,6 +63,33 @@ struct BlockchainsController: RouteCollection {
     func getHandler(_ req: Request) throws -> EventLoopFuture<Blockchain> {
         return Blockchain.find(req.parameters.get("blockchainID"), on: req.db)
             .unwrap(or: Abort(.notFound))
+    }
+    
+    // MARK: - UPDATE
+    
+    // MARK: - DELETE
+    
+    // MARK: - OTHERS
+    
+    func searchBlockHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
+        guard let searchTerm = req.query[Int.self, at: "block"] else {
+            throw Abort(.badRequest)
+        }
+        
+        let allBlocks = try getBlocksHandler(req)
+        
+        return allBlocks.map { blocks in
+            return blocks.filter { element in
+                element.$number.wrappedValue == searchTerm
+            }
+        }
+    }
+    
+    func isValidChainHandler(_ req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        let allBlocks = try getBlocksHandler(req)
+        let result = allBlocks.map { Blockchain.isValidChain(blocks: $0) }
+        _ = result.map { print("Is valid chain: \($0)")}
+        return result
     }
     
     func getBlocksHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
@@ -79,21 +100,19 @@ struct BlockchainsController: RouteCollection {
     }
     
     func createBlockHandler(_ req: Request) throws -> EventLoopFuture<Block> {
-        let data = try req.content.decode(CreateBlockData.self)
-        let lastBlock = try getBlocksHandler(req).map { $0.last }.unwrap(or: Abort(.notFound))
+        let createBlockchainBlock = try req.content.decode(CreateBlockchainBlockData.self)
         
-        return lastBlock.flatMap { previousBlock in
-            let newBlock = Block.mineBlock(lastBlock: previousBlock, data: data.data)
-            return newBlock
-                .save(on: req.db)
-                .map { newBlock }
+        guard let blockchainID = req.parameters.get("blockchainID") else {
+            return req.eventLoop.future(error: Abort(.notFound))
         }
-    }
-    
-    func isValidChainHandler(_ req: Request) throws -> EventLoopFuture<HTTPStatus> {
-        let allBlocks = try getBlocksHandler(req)
-        let result = allBlocks.map { Blockchain.isValidChain(blocks: $0) }
-        _ = result.map { print("Is valid chain: \($0)")}
-        return result
+        let blockData = createBlockchainBlock.data
+        
+        let minedBlock = try BlockchainServices.createBlock(req, blockchainID: blockchainID, data: blockData)
+        
+        _ = minedBlock.map {
+            $0.save(on: req.db)
+        }
+        
+        return minedBlock
     }
 }
