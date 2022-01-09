@@ -39,6 +39,9 @@ final class Block: Model {
     @Parent(key: "blockchainID")
     var blockchain: Blockchain
     
+    @Siblings(through: BlockCategoryPivot.self, from: \.$block, to: \.$category)
+    var categories: [Category]
+    
     init() {}
     
     init(id: UUID? = nil, number: Int, timestamp: Double? = nil, lastHash: String, hash: String, data: String, nonce: Int, difficulty: Int? = nil, blockchainID: Blockchain.IDValue) {

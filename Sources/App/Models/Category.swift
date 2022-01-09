@@ -17,9 +17,12 @@ final class Category: Model, Content {
     @Field(key: "name")
     var name: String
     
+    @Siblings(through: BlockCategoryPivot.self, from: \.$category, to: \.$block)
+    var blocks: [Block]
+    
     init() {}
     
-    init(id: UUID?, name: String) {
+    init(id: UUID? = nil, name: String) {
         self.id = id
         self.name = name
     }

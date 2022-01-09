@@ -18,6 +18,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateBlockchain())
     app.migrations.add(CreateBlock())
     app.migrations.add(CreateCategory())
+    app.migrations.add(CreateBlockCategoryPivot())
     app.logger.logLevel = .debug
     try app.autoMigrate().wait()
     

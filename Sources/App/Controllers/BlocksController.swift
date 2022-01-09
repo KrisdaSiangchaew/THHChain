@@ -35,6 +35,11 @@ struct BlocksController: RouteCollection {
 
         // Sorted
         blocksRoutes.get("sorted", use: sortedHandler)
+        
+        // Block-category
+        blocksRoutes.post(":blockID", "categories", ":categoryID", use: addCategoryHandler)
+        blocksRoutes.get(":blockID", "categories", use: getCategoriesHandler)
+        blocksRoutes.delete(":blockID", "categories", ":categoryID", use: removeCategoriesHandler)
     }
     
     // MARK: - CREATE
@@ -95,5 +100,45 @@ struct BlocksController: RouteCollection {
         Block.query(on: req.db)
             .sort(\.$number, .ascending)
             .all()
+    }
+    
+    // MARK: - BLOCK-CATEGORY-PIVOT
+    func addCategoryHandler(_ req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        let blockQuery = Block.find(req.parameters.get("blockID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+        let categoryQuery = Category.find(req.parameters.get("categoryID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+        
+        return blockQuery.and(categoryQuery)
+            .flatMap { block, category in
+                block
+                    .$categories
+                    .attach(category, on: req.db)
+                    .transform(to: HTTPStatus.created)
+            }
+            
+    }
+    
+    func getCategoriesHandler(_ req: Request) throws -> EventLoopFuture<[Category]> {
+        Block.find(req.parameters.get("blockID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+            .flatMap { block in
+                block.$categories.get(on: req.db)
+            }
+    }
+    
+    func removeCategoriesHandler(_ req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        let blockQuery = Block.find(req.parameters.get("blockID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+        let categoryQuery = Category.find(req.parameters.get("categoryID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+        
+        return blockQuery.and(categoryQuery)
+            .flatMap { block, category in
+                block
+                    .$categories
+                    .detach(category, on: req.db)
+                    .transform(to: HTTPStatus.noContent)
+            }
     }
 }

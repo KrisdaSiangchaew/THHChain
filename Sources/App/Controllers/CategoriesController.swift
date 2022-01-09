@@ -19,6 +19,7 @@ struct CategoriesController: RouteCollection {
         // Read
         categoriesRoutes.get(use: getAllHandler)
         categoriesRoutes.get(":categoryID", use: getHandler)
+        categoriesRoutes.get(":categoryID", "blocks", use: getBlocksHandler)
     }
     
     func createHandler(_ req: Request) throws -> EventLoopFuture<Category> {
@@ -33,5 +34,13 @@ struct CategoriesController: RouteCollection {
     func getHandler(_ req: Request) throws -> EventLoopFuture<Category> {
         Category.find(req.parameters.get("categoryID"), on: req.db)
             .unwrap(or: Abort(.notFound))
+    }
+    
+    func getBlocksHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
+        Category.find(req.parameters.get("categoryID"), on: req.db)
+            .unwrap(or: Abort(.notFound))
+            .flatMap { category in
+                category.$blocks.get(on: req.db)
+            }
     }
 }
