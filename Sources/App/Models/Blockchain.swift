@@ -31,6 +31,11 @@ final class Blockchain: Model {
 extension Blockchain: Content { }
 
 extension Blockchain {
+    enum BlockchainError: Error {
+        case invalidGenesisBlock
+        case invalidBlockchain
+    }
+    
     func addBlock(lastBlock: Block?, data: String?) -> Block? {
         guard let blockchainID = self.id else {
             return nil
@@ -43,9 +48,9 @@ extension Blockchain {
         return Block.mineBlock(lastBlock: lastBlock, data: data)
     }
     
-    static func isValidChain(blocks: [Block]) -> HTTPStatus {
+    static func isValidChain(blocks: [Block]) -> Result<Bool, BlockchainError> {
         if blocks[0] != Block.genesis(blockchainID: blocks[0].id!) {
-            return HTTPStatus.conflict
+            return .failure(.invalidGenesisBlock)
         }
         
         for index in (1 ..< blocks.count) {
@@ -53,10 +58,10 @@ extension Blockchain {
             let block = blocks[index]
             
             if (block.lastHash != lastBlock.hash) || (block.hash != Block.hash(block: block)) {
-                return HTTPStatus.badRequest
+                return .failure(.invalidBlockchain)
             }
         }
         
-        return HTTPStatus.accepted
+        return .success(true)
     }
 }

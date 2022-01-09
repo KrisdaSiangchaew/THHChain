@@ -14,17 +14,21 @@ struct CreateBlockData: Content {
 }
 
 struct BlocksController: RouteCollection {
+    // MARK: - ENDPOINTS
+    
     func boot(routes: RoutesBuilder) throws {
         let blocksRoutes = routes.grouped("api", "blocks")
         
-        // Create new block
+        // Create
         blocksRoutes.post(use: createHandler)
 
         // Read
         blocksRoutes.get(use: getAllHandler)
         blocksRoutes.get(":blockID", use: getHandler)
-        blocksRoutes.get("last", use: getLastHandler)
         blocksRoutes.get(":blockID", "blockchain", use: getBlockchainHandler)
+        
+        // Update
+        blocksRoutes.put(":blockID", use: updateHandler)
 
         // Search
         blocksRoutes.get("search", use: searchHandler)
@@ -33,7 +37,8 @@ struct BlocksController: RouteCollection {
         blocksRoutes.get("sorted", use: sortedHandler)
     }
     
-    // MARK: - CREATE BLOCK
+    // MARK: - CREATE
+    
     func createHandler(_ req: Request) throws -> EventLoopFuture<Block> {
         let createBlock = try req.content.decode(CreateBlockData.self)
         
@@ -50,6 +55,7 @@ struct BlocksController: RouteCollection {
     }
 
     // MARK: - READ
+    
     func getHandler(_ req: Request) throws -> EventLoopFuture<Block> {
         Block.find(req.parameters.get("blockID"), on: req.db)
             .unwrap(or: Abort(.notFound))
@@ -58,13 +64,6 @@ struct BlocksController: RouteCollection {
     func getAllHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
         Block.query(on: req.db).all()
     }
-
-    func getLastHandler(_ req: Request) throws -> EventLoopFuture<Block> {
-        Block.query(on: req.db)
-            .all()
-            .map { $0.last }
-            .unwrap(or: Abort(.notFound))
-    }
     
     func getBlockchainHandler(_ req: Request) throws -> EventLoopFuture<Blockchain> {
         Block.find(req.parameters.get("blockID"), on: req.db)
@@ -72,6 +71,18 @@ struct BlocksController: RouteCollection {
             .flatMap { block in
                 block.$blockchain.get(on: req.db)
             }
+    }
+    
+    // MARK: - UPDATE
+    
+    func updateHandler(_ req: Request) throws -> EventLoopFuture<Block> {
+        let block = try getHandler(req)
+        let updateData = try req.content.decode(CreateBlockData.self)
+        return block.flatMap { content in
+            content.data = updateData.data
+            content.$blockchain.id = updateData.blockchainID
+            return content.save(on: req.db).map { content }
+        }
     }
 
     // MARK: - SEARCH
