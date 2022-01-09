@@ -12,4 +12,6 @@ func routes(_ app: Application) throws {
     let blocksController = BlocksController()
     try app.register(collection: blocksController)
     
+    let categoriesController = CategoriesController()
+    try app.register(collection: categoriesController)
 }

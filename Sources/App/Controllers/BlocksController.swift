@@ -45,13 +45,7 @@ struct BlocksController: RouteCollection {
         let blockchainID = createBlock.blockchainID.uuidString
         let blockData = createBlock.data
         
-        let minedBlock = try BlockchainServices.createBlock(req, blockchainID: blockchainID, data: blockData)
-        
-        _ = minedBlock.map {
-            $0.save(on: req.db)
-        }
-        
-        return minedBlock
+        return try BlockchainServices.createBlock(req, blockchainID: blockchainID, data: blockData)
     }
 
     // MARK: - READ
