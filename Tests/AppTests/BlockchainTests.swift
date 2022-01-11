@@ -9,29 +9,30 @@
 import XCTVapor
 
 final class BlockchainTests: XCTestCase {
+    let blockchainsName = "THH Blockchain"
+    let blockchainsURI = "api/blockchains"
+    var app: Application!
+    
+    override func setUpWithError() throws {
+        app = try Application.testable()
+    }
+    
+    override func tearDownWithError() throws {
+        app.shutdown()
+    }
+    
     func testBlockchainsCanBeRetrievedFromAPI() throws {
-        let expectedName = "THH Blochchain"
+        let blockchain = try Blockchain.create(name: blockchainsName, database: app.db)
+        _ = try Blockchain.create(database: app.db)
         
-        let app = Application(.testing)
-        defer { app.shutdown() }
-        try configure(app)
-        try app.autoRevert().wait()
-        try app.autoMigrate().wait()
-        
-        let chain = Blockchain(name: expectedName)
-        try chain.save(on: app.db).wait()
-        
-        let chain2 = Blockchain(name: "Kad Chain")
-        try chain2.save(on: app.db).wait()
-        
-        try app.test(.GET, "api/blockchains", afterResponse: { response in
+        try app.test(.GET, blockchainsURI, afterResponse: { response in
             XCTAssertEqual(response.status, .ok)
             
             let users = try response.content.decode([Blockchain].self)
             
             XCTAssertEqual(users.count, 2)
-            XCTAssertEqual(users[0].name, expectedName)
-            XCTAssertEqual(users[0].id, chain.id)
+            XCTAssertEqual(users[0].name, blockchainsName)
+            XCTAssertEqual(users[0].id, blockchain.id)
         })
     }
 }

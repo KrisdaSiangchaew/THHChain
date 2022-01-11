@@ -18,6 +18,4 @@ struct CreateBlockchain: Migration {
     func revert(on database: Database) -> EventLoopFuture<Void> {
         database.schema("blockchains").delete()
     }
-    
-    
 }
