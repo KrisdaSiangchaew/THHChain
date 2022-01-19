@@ -44,13 +44,18 @@ struct BlocksController: RouteCollection {
     
     // MARK: - CREATE
     
-    func createHandler(_ req: Request) throws -> EventLoopFuture<Block> {
-        let createBlock = try req.content.decode(CreateBlockData.self)
+    func createHandler(_ req: Request) async throws -> Block {
+        let createBlockData = try req.content.decode(CreateBlockData.self)
         
-        let blockchainID = createBlock.blockchainID.uuidString
-        let blockData = createBlock.data
+        let blockchainID = createBlockData.blockchainID.uuidString
+        let blockData = createBlockData.data
         
-        return try BlockchainServices.createBlock(req, blockchainID: blockchainID, data: blockData)
+        let blockchain = try await Blockchain.find(UUID(uuidString: blockchainID)!, on: req.db)
+        
+        guard let newBlock = try await blockchain?.addBlock(data: blockData, in: req.db) else { throw BlockchainError.invalidBlock }
+        
+        return newBlock
+        
     }
 
     // MARK: - READ
@@ -60,8 +65,8 @@ struct BlocksController: RouteCollection {
             .unwrap(or: Abort(.notFound))
     }
 
-    func getAllHandler(_ req: Request) throws -> EventLoopFuture<[Block]> {
-        Block.query(on: req.db).all()
+    func getAllHandler(_ req: Request) async throws -> [Block] {
+        return try await Block.query(on: req.db).all()
     }
     
     func getBlockchainHandler(_ req: Request) throws -> EventLoopFuture<Blockchain> {
