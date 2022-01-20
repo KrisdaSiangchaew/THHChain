@@ -72,13 +72,14 @@ extension Block: Content {
 }
 
 extension Block {
-    static func genesis(blockchainID: UUID) -> Block {
+    static func genesis(id: UUID? = nil, blockchainID: UUID) -> Block {
         return Block(
+            id: id,
             number: 1,
             timestamp: Date(),
-            lastHash: "----",
-            hash: "T3nGH3NgH3ng",
-            data: "Genesis Block",
+            lastHash: Genesis.lastHash.rawValue,
+            hash: Genesis.hash.rawValue,
+            data: Genesis.data.rawValue,
             nonce: 0,
             difficulty: BlockConstants.DIFFICULTY.rawValue,
             blockchainID: blockchainID
@@ -87,7 +88,7 @@ extension Block {
     
     static func lastBlock(of blockchainID: UUID, in database: Database) async throws -> Block {
         guard let blockchain = try await Blockchain.find(blockchainID, on: database) else { throw BlockchainError.invalidBlockchain }
-        return try await blockchain.lastBlock(in: database)
+        return try await blockchain.lastBlock(on: database)
     }
     
     static func addBlock(data: String, lastBlock: Block, in database: Database) async throws -> Block {
@@ -98,21 +99,35 @@ extension Block {
     
     static func mineBlock(lastBlock: Block, data: String) async -> Block {
         let minedBlock = Task { () -> Block in
+            let startTimestamp: Date = Date()
             var timestamp: Date = Date()
             var nonce: Int = 0
-            var difficulty: Int = BlockConstants.DIFFICULTY.rawValue
+            var difficulty: Int = lastBlock.difficulty
             var hash: String = ""
             
             repeat {
                 timestamp = Date()
                 nonce += 1
-                difficulty = Block.adjustDifficulty(lastBlock, timestamp)
+                difficulty += Block.adjustDifficulty(startTimestamp, timestamp)
                 hash = Block.hash(timestamp: timestamp, lastHash: lastBlock.hash, data: data, nonce: nonce, difficulty: difficulty)
             } while hash.prefix(difficulty) != String(repeating: "0", count: difficulty)
             
             return Block(id: UUID(), number: lastBlock.number + 1, timestamp: timestamp, lastHash: lastBlock.hash, hash: hash, data: data, nonce: nonce, difficulty: difficulty, blockchainID: lastBlock.$blockchain.id)
         }
+        
         return await minedBlock.value
+    }
+    
+    static func adjustDifficulty(_ startTime: Date, _ timestamp: Date) -> Int {
+        let timeDifference = Int(timestamp.timeIntervalSince(startTime))
+        
+        if timeDifference > 10 && timeDifference < 60 {
+            return 0
+        } else if timeDifference > 60 {
+            return -1
+        } else {
+            return 1
+        }
     }
     
     static func hash(
@@ -128,16 +143,6 @@ extension Block {
     
     static func hash(block: Block) -> String {
         return Block.hash(timestamp: block.timestamp, lastHash: block.lastHash, data: block.data, nonce: block.nonce, difficulty: block.difficulty)
-    }
-    
-    static func adjustDifficulty(_ lastBlock: Block, _ timestamp: Date) -> Int {
-        var difficulty = lastBlock.difficulty
-        let timeDifference = timestamp.timeIntervalSince(lastBlock.timestamp)
-        difficulty += BlockConstants.MINE_RATE.rawValue > Int(timeDifference) ? 1 : -1
-        
-        if difficulty < 0 { difficulty = 0 }
-        
-        return difficulty
     }
 }
 

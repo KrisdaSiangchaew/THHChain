@@ -7,6 +7,7 @@
 
 import Vapor
 import Fluent
+import Foundation
 
 struct BlockchainsController: RouteCollection {
     // MARK: - ENDPOINTS
@@ -14,11 +15,24 @@ struct BlockchainsController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         let blockchainsRoutes = routes.grouped("api", "blockchains")
         
+        // create new blockchain
         blockchainsRoutes.post("name", ":blockchainName", use: createHandler)
+        
+        // get all blockchains
         blockchainsRoutes.get(use: getAllHandler)
-        blockchainsRoutes.get(":blockchainID", "blocks", use: getBlocksHandler)
+        
+        // get all blocks of a chain
+        blockchainsRoutes.get(":blockchainID", "blocks", use: getAllBlocksHandler)
+        
+        // get specific block of a chain
+        blockchainsRoutes.get(":blockchainID", ":blockID", use: getSpecificBlockHandler)
+        
+        // update a blockchain
         blockchainsRoutes.put(":blockchainID", "name", ":newName", use: updateHandler)
+        
+        // delete a chain
         blockchainsRoutes.delete(":blockchainID", use: deleteHandler)
+        
         blockchainsRoutes.get("search", use: searchHandler)
     }
     
@@ -26,7 +40,8 @@ struct BlockchainsController: RouteCollection {
     
     func createHandler(_ req: Request) async throws -> Blockchain {
         guard let name = req.parameters.get("blockchainName") else { throw Abort(.badRequest) }
-        return try await Blockchain.create(name: name, database: req.db)
+        let (blockchain, _) = try await Blockchain.createBlockchain(name: name, on: req.db)
+        return blockchain
     }
     
     // MARK: - READ
@@ -35,11 +50,29 @@ struct BlockchainsController: RouteCollection {
         try await Blockchain.query(on: req.db).all()
     }
     
-    func getBlocksHandler(_ req: Request) async throws -> [Block] {
+    func getAllBlocksHandler(_ req: Request) async throws -> [Block] {
         guard let idString = req.parameters.get("blockchainID") else { throw Abort(.badRequest) }
         guard let id = UUID(uuidString: idString) else { throw Abort(.badRequest) }
         guard let chain = try await Blockchain.find(id, on: req.db) else { throw Abort(.badRequest) }
         return try await chain.$blocks.query(on: req.db).all()
+    }
+    
+    func getSpecificBlockHandler(_ req: Request) async throws -> Block {
+        guard let idString = req.parameters.get("blockchainID") else { throw Abort(.badRequest) }
+        guard let blockIDString = req.parameters.get("blockID") else { throw Abort(.badRequest) }
+        
+        guard let id = UUID(uuidString: idString) else { throw Abort(.badRequest) }
+        guard let blockID = UUID(uuidString: blockIDString) else { throw Abort(.badRequest) }
+        
+        guard let chain = try await Blockchain.find(id, on: req.db) else { throw Abort(.badRequest) }
+        
+        let foundBlock = try await chain.$blocks.query(on: req.db).all().first(where: { $0.id == blockID })
+        
+        guard let foundBlock = foundBlock else {
+            throw (BlockchainError.cannotFindBlock)
+        }
+
+        return foundBlock
     }
     
     // MARK: - UPDATE

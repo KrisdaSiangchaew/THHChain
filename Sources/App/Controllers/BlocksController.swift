@@ -19,21 +19,17 @@ struct BlocksController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         let blocksRoutes = routes.grouped("api", "blocks")
         
-        // Create
-        blocksRoutes.post(use: createHandler)
-
-        // Read
+        // create new block
+        blocksRoutes.post("mine", use: createHandler)
+        
+        // get all blocks
         blocksRoutes.get(use: getAllHandler)
+        
+        
         blocksRoutes.get(":blockID", use: getHandler)
         blocksRoutes.get(":blockID", "blockchain", use: getBlockchainHandler)
-        
-        // Update
         blocksRoutes.put(":blockID", use: updateHandler)
-
-        // Search
         blocksRoutes.get("search", use: searchHandler)
-
-        // Sorted
         blocksRoutes.get("sorted", use: sortedHandler)
         
         // Block-category
@@ -50,12 +46,10 @@ struct BlocksController: RouteCollection {
         let blockchainID = createBlockData.blockchainID.uuidString
         let blockData = createBlockData.data
         
-        let blockchain = try await Blockchain.find(UUID(uuidString: blockchainID)!, on: req.db)
+        guard let id = UUID(uuidString: blockchainID) else { throw Abort(.badRequest) }
+        guard let chain = try await Blockchain.find(id, on: req.db) else { throw Abort(.badRequest) }
         
-        guard let newBlock = try await blockchain?.addBlock(data: blockData, in: req.db) else { throw BlockchainError.invalidBlock }
-        
-        return newBlock
-        
+        return try await chain.addBlock(data: blockData, on: req.db)
     }
 
     // MARK: - READ
