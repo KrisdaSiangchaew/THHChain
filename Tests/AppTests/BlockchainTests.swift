@@ -15,6 +15,7 @@ final class BlockchainTests: XCTestCase {
     let genesisBlockData = "Genesis Block"
     let genesisBlockHash = "T3nGH3NgH3ng"
     let blockchainsURI = "api/blockchains/"
+    let blocksURI = "api/blocks/"
     var app: Application!
     
     override func setUpWithError() throws {
@@ -99,14 +100,14 @@ final class BlockchainTests: XCTestCase {
         })
     }
     
-    func testCanAddNewBlockAndRetriveThruAPI() async throws {
+    func testCanAddNewBlockAndRetrieveThruAPI() async throws {
         let (bc, genesisBlock) = try await Blockchain.createBlockchain(name: "test", on: app.db)
         
         guard let blockchainID = bc.id else { throw BlockchainError.invalidBlockchain }
         
-        let blockData = CreateBlockData(data: "Hello, World!", blockchainID: UUID())
+        let blockData = CreateBlockData(data: "Hello, World!", blockchainID: blockchainID)
         
-        try app.test(.POST, blockchainsURI + "\(blockchainID.uuidString)/mine", beforeRequest: { req in
+        try app.test(.POST, blocksURI + "mine", beforeRequest: { req in
             try req.content.encode(blockData)
         }, afterResponse: { response in
             let block = try response.content.decode(Block.self)
