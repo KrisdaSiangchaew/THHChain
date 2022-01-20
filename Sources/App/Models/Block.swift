@@ -98,17 +98,23 @@ extension Block {
     }
     
     static func mineBlock(lastBlock: Block, data: String) async -> Block {
+        
         let minedBlock = Task { () -> Block in
-            let startTimestamp: Date = Date()
-            var timestamp: Date = Date()
+            var startMiningTime = Date()
+            var timestamp = Date()
+            var hash  = ""
+            var originalDifficulty = BlockConstants.DIFFICULTY.rawValue
+            var difficulty = BlockConstants.DIFFICULTY.rawValue
             var nonce: Int = 0
-            var difficulty: Int = lastBlock.difficulty
-            var hash: String = ""
             
             repeat {
-                timestamp = Date()
                 nonce += 1
-                difficulty += Block.adjustDifficulty(startTimestamp, timestamp)
+                timestamp = Date()
+                difficulty = Block.adjustDifficulty(difficulty: difficulty, startMiningTime: startMiningTime, timestamp: timestamp)
+                if originalDifficulty != difficulty {
+                    startMiningTime = Date()
+                    originalDifficulty = difficulty
+                }
                 hash = Block.hash(timestamp: timestamp, lastHash: lastBlock.hash, data: data, nonce: nonce, difficulty: difficulty)
             } while hash.prefix(difficulty) != String(repeating: "0", count: difficulty)
             
@@ -118,16 +124,12 @@ extension Block {
         return await minedBlock.value
     }
     
-    static func adjustDifficulty(_ startTime: Date, _ timestamp: Date) -> Int {
-        let timeDifference = Int(timestamp.timeIntervalSince(startTime))
-        
-        if timeDifference > 10 && timeDifference < 60 {
-            return 0
-        } else if timeDifference > 60 {
-            return -1
-        } else {
-            return 1
-        }
+    static func adjustDifficulty(difficulty: Int, startMiningTime: Date, timestamp: Date) -> Int {
+        var difficulty = difficulty
+        let allottedTime = startMiningTime.addingTimeInterval(Double(BlockConstants.MINE_RATE.rawValue))
+        difficulty = allottedTime > timestamp ? difficulty : difficulty - 1
+        if difficulty < 0 { difficulty = 4 }
+        return difficulty
     }
     
     static func hash(
